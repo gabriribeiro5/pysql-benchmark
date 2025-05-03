@@ -1,0 +1,1 @@
+This directory is meant to be loaded by a docker bind proccess, in which the container's log directory files are copyied to this one at runtime.
