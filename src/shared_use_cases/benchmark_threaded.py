@@ -1,9 +1,12 @@
 import random
 import threading
 import time
+import logging
+
+from utilities.logger import log_running_and_done
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from benchmark_base import BenchmarkBase
+from bench_interfaces.benchmark_base import BenchmarkBase
 
 
 class ThreadedBenchmark(BenchmarkBase):
@@ -27,10 +30,10 @@ class ThreadedBenchmark(BenchmarkBase):
     def run(self):
         self._disconnect()
         return {
-            "insert": self.insert(),
-            "select": self.select(),
-            "update": self.update(),
-            "delete": self.delete(),
+            "insert": self.threaded_insert(),
+            "select": self.threaded_select(),
+            "update": self.threaded_update(),
+            "delete": self.threaded_delete(),
         }
 
     def _run_queries_in_threads(self, query_func):
@@ -41,77 +44,79 @@ class ThreadedBenchmark(BenchmarkBase):
             for future in as_completed(futures):
                 future.result()
 
-    def insert(self):
+    @log_running_and_done
+    def threaded_insert(self):
         connection, cursor = self._connect()
-
         # Drop the table if it exists and create it again
         cursor.execute(self.drop_table_query)
         cursor.execute(self.create_table_query)
         cursor.close()
         connection.close()
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
-        def insert_query(_):
+        def threaded_insert_query(_):
             connection, cursor = self._get_connection_from_pool()
             data = f"Sample data {random.randint(1, 1000)}"
             cursor.execute(self.insert_query, (data,))
             connection.commit()
 
-        self._run_queries_in_threads(insert_query)
-        end_time = time.time()
+        self._run_queries_in_threads(threaded_insert_query)
+        end_time = time.perf_counter()
 
         return end_time - start_time
 
-    def select(self):
+    @log_running_and_done
+    def threaded_select(self):
         connection, cursor = self._connect()
-
         cursor.close()
         connection.close()
-        start_time = time.time()
+        start_time = time.perf_counter()
 
-        def select_query(i):
+        def threaded_select_query(i):
             connection, cursor = self._get_connection_from_pool()
             cursor.execute(self.select_query, (i,))
             cursor.fetchone()
 
-        self._run_queries_in_threads(select_query)
+        self._run_queries_in_threads(threaded_select_query)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return end_time - start_time
 
-    def update(self):
+    @log_running_and_done
+    def threaded_update(self):
         connection, cursor = self._connect()
         cursor.close()
         connection.close()
-        start_time = time.time()
+        start_time = time.perf_counter()
 
-        def update_query(i):
+        def threaded_update_query(i):
             connection, cursor = self._get_connection_from_pool()
             new_data = f"Updated data {random.randint(1, 1000)}"
             cursor.execute(self.update_query, (new_data, i))
             connection.commit()
 
-        self._run_queries_in_threads(update_query)
+        self._run_queries_in_threads(threaded_update_query)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return end_time - start_time
 
-    def delete(self):
+    @log_running_and_done
+    def threaded_delete(self):
         connection, cursor = self._connect()
         cursor.close()
         connection.close()
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
-        def delete_query(_):
+        def threaded_delete_query(_):
             connection, cursor = self._get_connection_from_pool()
             cursor.execute(self.delete_query)
             connection.commit()
 
-        self._run_queries_in_threads(delete_query)
-        end_time = time.time()
+        self._run_queries_in_threads(threaded_delete_query)
+        end_time = time.perf_counter()
 
         return end_time - start_time

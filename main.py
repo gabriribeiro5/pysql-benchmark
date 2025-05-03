@@ -1,87 +1,101 @@
 import asyncio
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt # type: ignore
+from connection_strategies.aiomysql_bench import AIOMySQLBench
+from connection_strategies.asyncmy_bench import AsyncMyBench
+from connection_strategies.mysqlclient_bench import MySQLdbBench
+from connection_strategies.mysqlclient_threaded_bench import MySQLdbThreadedBench
+from connection_strategies.pymysql_bench import PyMySQLBench
+from connection_strategies.pymysql_threaded_bench import PyMySQLThreadedBench
 
-from aiomysql_bench import AIOMySQLBench
-from asyncmy_bench import AsyncMyBench
-from mysqlclient_bench import MySQLdbBench
-from mysqlclient_threaded_bench import MySQLdbThreadedBench
-from pymysql_bench import PyMySQLBench
-from pymysql_threaded_bench import PyMySQLThreadedBench
+from config import Definitions
+from utilities.logger import LogSetup, log_running_and_done
+import logging
+import pdb
+from time import time
 
+class DBLibsBenchmark():
+    def __init__(self):
+        self.config = Definitions()
+        if self.config.LOGGING_ENABLED:
+                self.logger = LogSetup()
+                self.logger.enableLog(self.config.LOG_DIR, self.config.LOG_FILE_NAME)
 
-def plot_histogram(data, libraries, queries):
-    fig, ax = plt.subplots()
+    def plot_histogram(self, data, libraries, queries):
+        fig, ax = plt.subplots()
 
-    # Create bar positions
-    x = range(len(queries))
-    total_width = 0.8  # Total width for all bars in a group
-    width = total_width / len(libraries)  # Width of each bar
+        # Create bar positions
+        x = range(len(queries))
+        total_width = 0.8  # Total width for all bars in a group
+        width = total_width / len(libraries)  # Width of each bar
+        
+        logging.info("Ploting data for each library")
+        # Plot data for each library
+        for i, library in enumerate(libraries):
+            # self.ensure_data(queries, data, library)
+            times = []
+            for query in queries:
+                if data[library] == "skipped":
+                    times.append(0)
+                elif data[library] is not None and dict(data[library]).get(query) is not None:
+                    times.append(dict(data[library]).get(query))
+                else:
+                    times.append(0)
 
-    # Plot data for each library
-    for i, library in enumerate(libraries):
-        times = [data[library][query] for query in queries]
-        ax.bar([pos + i * width for pos in x], times, width, label=library)
+            # times = [dict(data[library]).get(query) if data[library] is not None else 0 for query in queries] # Default to 0
+            ax.bar([pos + i * width for pos in x], times, width, label=library)
 
-    # Set labels and title
-    ax.set_xlabel("Queries")
-    ax.set_ylabel("Time (seconds)")
-    ax.set_title("Query Performance by Library")
-    ax.set_xticks([pos + total_width / 2 for pos in x])
-    ax.set_xticklabels(queries)
+        # Set labels and title
+        logging.info("Setting labels and title")
+        ax.set_xlabel("Queries")
+        ax.set_ylabel("Time (seconds)")
+        ax.set_title("Query Performance by Library")
+        ax.set_xticks([pos + total_width / 2 for pos in x])
+        ax.set_xticklabels(queries)
 
-    # Add legend
-    ax.legend()
+        # Add legend
+        ax.legend()
+        logging.info("Saving bench.png")
+        plt.savefig("pysql_benchmark/bench.png")
+        logging.info("Taking a nap")
+        time.sleep(100000)
 
-    plt.show()
+    
+    def ensure_data(self, queries, data, library):
+        for query in queries: # Ensure all query results exist in data
+            try:
+                if query not in data[library]:
+                    msg = f"Missing data for {query} in {library}"
+                    logging.warning(msg)
+            except TypeError:
+                msg = f"The {library}'s query ({query}) is probably None and is not iterable"
+                logging.warning(msg)
 
+    async def main(self):
+        self.pymysql_bench = PyMySQLBench()
+        self.pymysql_threaded_bench = PyMySQLThreadedBench()
+        self.mysqlclient_bench = MySQLdbBench()
+        self.mysqlclient_threaded_bench = MySQLdbThreadedBench()
+        self.asyncmy_bench = AsyncMyBench()
+        self.aiomysql_bench = AIOMySQLBench()
 
-async def main():
-    pymysql_bench = PyMySQLBench()
-    pymysql_threaded_bench = PyMySQLThreadedBench()
-    mysqlclient_bench = MySQLdbBench()
-    mysqlclient_threaded_bench = MySQLdbThreadedBench()
-    asyncmy_bench = AsyncMyBench()
-    aiomysql_bench = AIOMySQLBench()
+        # generate data dinamically using configuration variables
+        logging.info("Starting lib executions...")
+        data = {
+            "PyMySQL": self.pymysql_bench.run() if self.config.USE_CASES_TO_RUN["pymysql"] else "skipped",
+            "mysqlclient": self.mysqlclient_bench.run() if self.config.USE_CASES_TO_RUN["mysqlclient"] else "skipped",
+            "PyMySQL T": self.pymysql_threaded_bench.run() if self.config.USE_CASES_TO_RUN["pymysql_t"] else "skipped",
+            "mysqlclient T": self.mysqlclient_threaded_bench.run() if self.config.USE_CASES_TO_RUN["mysqlclient_t"] else "skipped",
+            "aiomysql": await self.aiomysql_bench.run() if self.config.USE_CASES_TO_RUN["aiomysql"] else "skipped",
+            "asyncmy": await self.asyncmy_bench.run() if self.config.USE_CASES_TO_RUN["asyncmy"] else "skipped",
+        }
 
-    print("Running PyMySQL bench...")
-    pymy_res = pymysql_bench.run()
-    print(pymy_res)
-
-    print("Running mysqlclient bench...")
-    mc_res = mysqlclient_bench.run()
-    print(mc_res)
-
-    print("Let's go for async mode!")
-    print("Running threaded PyMySQL...")
-    pymyt_res = pymysql_threaded_bench.run()
-    print(pymyt_res)
-
-    print("Running threaded mysqlclient...")
-    mysqlt_res = mysqlclient_threaded_bench.run()
-    print(mysqlt_res)
-
-    print("Running asyncmy bench...")
-    am_res = await asyncmy_bench.run()
-    print(am_res)
-
-    print("Running aiomysql bench...")
-    aiom_res = await aiomysql_bench.run()
-    print(aiom_res)
-
-    print("Plotting results...")
-    data = {
-        "PyMySQL": pymy_res,
-        "mysqlclient": mc_res,
-        "PyMySQL T": pymyt_res,
-        "mysqlclient T": mysqlt_res,
-        "asyncmy": am_res,
-        "aiomysql": aiom_res,
-    }
-    libraries = [lib for lib in data]
-    queries = ["insert", "select", "update", "delete"]
-    plot_histogram(data, libraries, queries)
+        logging.info("Finished runinng use cases")
+        libraries = [lib for lib in data if lib != "skipped"]
+        queries = ["insert", "select", "update", "delete"]
+        self.plot_histogram(data, libraries, queries)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bench = DBLibsBenchmark()
+    asyncio.run(bench.main())
