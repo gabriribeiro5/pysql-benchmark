@@ -1,0 +1,68 @@
+services:
+  api1: &bench_api
+    hostname: app1
+    image: pysql_benchmark_image:latest
+    container_name: pysql_bench_container_1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./src:/src/pysql_benchmark # Bind mount the 'src' directory to '/src' inside the container
+      - ./log:/var/log/pysql_benchmark  # Bind mount the 'logs' directory to '/var/log' inside the container
+    environment:
+      - PYTHONUNBUFFERED=1  # Optional, for better logging
+    # enable iteractive mode
+    stdin_open: true  # Keeps the STDIN open for interaction
+    tty: true         # Allocates a pseudo-TTY
+  #   # The name of the network in witch the service will be available
+  #   networks:
+  #     - db-tier
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+      
+  
+  # api2:
+  #   <<: *bench_api
+  #   hostname: app2
+  #   container_name: pysql_benchmark_container_2
+
+  mysql:
+    image: mysql:8.0.41-debian
+    container_name: db_container_1
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'py_bench_db'
+      # So you don't have to use root, but you can if you like
+      # MYSQL_USER: 'py_bench'
+      # You can use whatever password you like
+      # MYSQL_PASSWORD: 'py_bench@123'
+      MYSQL_ROOT_PASSWORD: 'pwd123'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+    ports:
+      # <Port exposed> : <MySQL Port running inside container>
+      - '33062:3306'
+    expose:
+      # Opens port 3306 on the container
+      - '3306'
+    # Where our data will be persisted
+    volumes:
+      - db_pysql_bench:/var/lib/mysql # Bind volume mount to '/var/lib' inside the container
+      # - E:/ProgramData/Docker/db_pysql_bench:/var/lib/mysql # Bind mount the host's data directory to '/var/lib' inside the container
+    # The name of the network in witch the service will be available
+    # networks:
+    #   - db-tier
+    # healthcheck:
+    #   test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+    #   interval: 10s
+    #   retries: 5
+
+# Names our volume
+volumes:
+  db_pysql_bench:
+
+# networks:
+#   # The presence of these objects is sufficient to define them
+#   db-tier: {}
