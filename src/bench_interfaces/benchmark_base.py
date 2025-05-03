@@ -1,10 +1,14 @@
-class BenchmarkBase:
+from config import Definitions
+
+class BenchmarkBase(Definitions):
     def __init__(self) -> None:
-        self.DB_HOST = "127.0.0.1"
-        self.DB_USER = "root"
-        self.DB_PASSWORD = ""
-        self.DB_NAME = "benchmark_test"
-        self.NUM_QUERIES = 10000
+        config = Definitions()
+        self.DB_HOST = config.DB_HOST
+        self.DB_PORT = config.DB_PORT
+        self.DB_USER = config.DB_USER
+        self.DB_KEY = config.DB_KEY
+        self.DB_NAME = config.DB_NAME
+        self.NUM_QUERIES = config.NUM_QUERIES
 
         self.create_table_query = """
         CREATE TABLE IF NOT EXISTS test_table (
